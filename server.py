@@ -16,13 +16,12 @@ mainHtml = """
 </head>
 <body>
     <h1>Welcome</h1>
-    <button id="login">Login</button>
+    <button onclick="location.href='login'" id="login">Login</button>
     <button onclick="location.href='sign-up'" id="sign-up">Sign-Up</button>
 </body>
 </html>
 """
 
-returnMess = ""
 
 
 
@@ -32,7 +31,7 @@ returnMess = ""
 app=flask.Flask("banking")
 bcrypt = Bcrypt(app)
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/")
 def main():
     return mainHtml
 
@@ -90,8 +89,7 @@ def login():
 
 @app.route("/sign-up", methods=["GET", "POST"])
 def signup():
-    global returnMess
-
+    returnMess = ""
     
     email = flask.request.form.get('email')
     firstName = flask.request.form.get('firstName')
@@ -129,7 +127,9 @@ def signup():
         <input required type="password" name="pass" placeholder="mot de passe">
         <input type="submit" value="Sign up" >
     </form>
-    <h2>{returnMess}</h2
+    <h2>{returnMess}</h2>
+    <button onclick="location.href='/'" id="main">Back</button>
+
 </body>
 </html>
 """
