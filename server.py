@@ -102,7 +102,7 @@ def dashboard():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     returnMess = ""
-
+    userAuth = None
     email = flask.request.form.get('email')
     password = flask.request.form.get('pass')
 
@@ -110,7 +110,7 @@ def login():
         with sqlite3.connect("tmp.sqlite3") as db:
             try:
                 cur = db.cursor()
-                cur.execute("SELECT password FROM userBase WHERE email == (?);", (email,))
+                cur.execute("SELECT password, userID FROM userBase WHERE email == (?);", (email,))
                 res = cur.fetchall()
                 if (res == []):
                     returnMess = "Error! Account does not exist"
@@ -119,7 +119,7 @@ def login():
                     hashed_password = res[0][0]
                     
                     if (bcrypt.check_password_hash(hashed_password, password)):
-                        
+                        userAuth = res[0][1]
                         returnMess = "Success!"
                     else:
                         returnMess = "Error! Wrong password"
@@ -157,7 +157,7 @@ def login():
 @app.route("/sign-up", methods=["GET", "POST"])
 def signup():
     returnMess = ""
-    
+    userAuth = None
     email = flask.request.form.get('email')
     firstName = flask.request.form.get('firstName')
     lastName = flask.request.form.get('lastName')
@@ -169,12 +169,18 @@ def signup():
                 hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
                 cur = db.cursor()
                 data = {'email': email, 'firstN': firstName, 'lastN': lastName, 'password': hashed_password}
-                cur.execute(f"INSERT INTO userBase (email, firstName, lastName, password) VALUES (:email, :firstN, :lastN, :password);", data)
+                cur.execute("INSERT INTO userBase (email, firstName, lastName, password) VALUES (:email, :firstN, :lastN, :password);", data)
+                cur.execute("SELECT last_insert_rowid();")
+                res = cur.fetchall()
+                userAuth = res[0][0]
+                cur.execute("INSERT INTO bankAccounts (accountType) VALUES (0);")
+                cur.execute("SELECT last_insert_rowid();")
+                res = cur.fetchall()
+                cur.execute("UPDATE userBase SET accountID = (?) WHERE email==(?);", (res[0][0], email))
                 db.commit()
-                returnMess = "Success!"
             except sqlite3.Error as e:
                 
-                returnMess = "Error!"
+                returnMess = "Error! Account already exists!"
     
 
     signUpHtml = f"""
@@ -212,10 +218,10 @@ def ff():
     resp.headers["content-type"] = "text/css"
     return resp
 
-# @app.route("/scripts/main.js")
-# def scriptMain():
-#     resp = flask.make_response(scriptSignUp)
-#     resp.headers["content-type"] = "text/javascript"
-#     return resp
+@app.route("/scripts/dashboard.js")
+def scriptDashboard():
+    resp = flask.make_response(dashboardJs)
+    resp.headers["content-type"] = "text/javascript"
+    return resp
 
 app.run(port=1234,host="127.0.0.1") 
