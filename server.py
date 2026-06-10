@@ -2,9 +2,29 @@ import flask
 import markupsafe
 from flask_bcrypt import Bcrypt
 import sqlite3
+from datetime import timedelta
+
+app=flask.Flask("banking")
+bcrypt = Bcrypt(app)
 
 
-mainHtml = """
+dashboardJs = """
+const disconnectButton = document.getElementById("log-out");
+
+disconnectButton.addEventListener("click", () => {
+    location.reload();
+    document.location.href = '/';
+    document.cookie = "userAuth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+});
+"""
+
+@app.route("/")
+def main():
+    mainHtml = ""
+    resp = None
+    isIdentified = flask.request.cookies.get('userAuth')
+    if not isIdentified:
+        mainHtml = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,18 +42,62 @@ mainHtml = """
 </html>
 """
 
+    else:
+        return flask.redirect(flask.url_for("dashboard"))
+
+    resp = flask.make_response(mainHtml)
+    return resp
+
+@app.route("/dashboard", methods=["GET", "POST"])
+def dashboard():
+    returnMess = ""
+    name = ""
+    accInfo = ""
+    userID = flask.request.cookies.get('userAuth')
+    with sqlite3.connect("tmp.sqlite3") as db:
+        try:
+            cur = db.cursor()
+            cur.execute("SELECT firstName, accountID FROM userBase where userID == (?);", (userID,))
+            res = cur.fetchall()
+            name = res[0][0]
+            cur.execute("SELECT money FROM bankAccounts where accountID == (?);", (res[0][1],))
+            res = cur.fetchall()
+            accInfo = f"<h2> Vous avez {res[0][0]} euros.</h2>"
+
+
+
+        except sqlite3.Error as e:
+            returnMess = "Error! " + e
+
+    
+
+    dashboardHtml = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main-page</title>
+    <link rel="stylesheet" href="style/style.css">
+    <script src="scripts/dashboard.js" defer></script>
+
+</head>
+<body>
+    <button id="log-out">Log Out</button>
+    <h1>Welcome {name}!</h1>
+    {accInfo}
+    <h2>{returnMess}</h2>
+
+</body>
+</html>
+"""
+
+    resp = flask.make_response(dashboardHtml)
+    return resp
 
 
 
 
-
-
-app=flask.Flask("banking")
-bcrypt = Bcrypt(app)
-
-@app.route("/")
-def main():
-    return mainHtml
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
