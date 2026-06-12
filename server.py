@@ -56,17 +56,98 @@ def dashboard():
     returnMess = ""
     name = ""
     accInfo = ""
-    userID = flask.request.cookies.get('userAuth')
+    sAccInfo = ""
+    addAccM = flask.request.form.get('amount-add')
+    sendAccM = flask.request.form.get('amount-send')
+    withdrawAccM = flask.request.form.get('amount-withdraw')
+    createSharedAcc = flask.request.form.get('createNameSharedAccount')
+    joinSharedAcc = flask.request.form.get('joinNameSharedAccount')
+    addSAccM = flask.request.form.get('amount-Sadd')
+    withdrawSAccM = flask.request.form.get('amount-Swithdraw')
+
+        
+    
     with sqlite3.connect("tmp.sqlite3") as db:
         try:
             cur = db.cursor()
-            cur.execute("SELECT firstName, accountID FROM userBase where userID == (?);", (userID,))
+            cur.execute("SELECT firstName, accountID, sharedAccountID FROM userBase where userID == (?);", (userID,))
             res = cur.fetchall()
             name = res[0][0]
-            cur.execute("SELECT money FROM bankAccounts where accountID == (?);", (res[0][1],))
-            res = cur.fetchall()
-            accInfo = f"<h2> Vous avez {res[0][0]} euros.</h2>"
+            accID = res[0][1]
+            
+            cur.execute("SELECT money FROM bankAccounts where accountID == (?);", (accID,))
+            money = cur.fetchone()[0]
+            
 
+            accInfo = f"<div id='acc-info'><h2> You have {money} euros on your personal account.</h2>\n<button class='money-button' value='add-acc'>Add money</button>\n<button class='money-button' value='send-acc'>Send money</button>\n<button class='money-button' value='withdraw-acc'>Withdraw money</button>\n</div>"
+            if res[0][2] == None:
+                sAccInfo = "<div id='no-sharedAcc-info'><h2> You do not have a shared bank account.\n<button id='create-shared-account'>Create shared account</button>\n<button id='join-shared-account'>Join shared account</button>\n</div>"
+                if createSharedAcc:
+                    passShrAcc = flask.request.form.get('passwordSharedAccount')
+                    hashed_password = bcrypt.generate_password_hash(passShrAcc).decode('utf-8')
+                    cur.execute("INSERT INTO bankAccounts (accountType, name, password) VALUES (1, (?), (?));", (createSharedAcc,hashed_password))
+                    cur.execute("SELECT last_insert_rowid();")
+                    sAccID = cur.fetchone()[0]
+                    cur.execute("UPDATE userBase SET sharedAccountID = (?) WHERE userID == (?);", (sAccID,accID))
+                    db.commit()
+                    return flask.redirect(flask.url_for('dashboard'))
+                if joinSharedAcc:
+                    passShrAcc = flask.request.form.get('passwordSharedAccount')
+                    
+                    
+                    return flask.redirect(flask.url_for('dashboard'))
+                
+                
+                
+            else:
+                sAccID = res[0][2]
+                cur.execute("SELECT money FROM bankAccounts where accountID == (?);", (sAccID,))
+                sharedMoney = cur.fetchone()[0]
+                sAccInfo = f"<div id='Sacc-info'><h2> You have {sharedMoney} euros on your shared account.</h2>\n<button class='money-button' value='add-Sacc'>Add money</button>\n<button class='money-button' value='withdraw-Sacc'>Withdraw money</button>\n</div>"
+                if addSAccM:
+                    cur.execute("UPDATE bankAccounts SET money=(?)+(?) WHERE accountID == (?);", (sharedMoney, addSAccM, sAccID))
+                    cur.execute("UPDATE bankAccounts SET money=(?)-(?) WHERE accountID == (?);", (money, addSAccM, accID))
+                    db.commit()
+                    return flask.redirect(flask.url_for('dashboard'))
+                if withdrawSAccM:
+                    cur.execute("UPDATE bankAccounts SET money=(?)-(?) WHERE accountID == (?);", (sharedMoney, withdrawSAccM, sAccID))
+                    cur.execute("UPDATE bankAccounts SET money=(?)+(?) WHERE accountID == (?);", (money, withdrawSAccM, accID))
+                    db.commit()
+                    return flask.redirect(flask.url_for('dashboard'))
+
+
+                
+
+
+
+            if addAccM:
+                cur.execute("UPDATE bankAccounts SET money=(?)+(?) WHERE accountID == (?);", (money, addAccM, accID))
+                db.commit()
+                return flask.redirect(flask.url_for('dashboard'))
+            
+            if sendAccM:
+                email = flask.request.form.get('send-email')
+                cur.execute("SELECT userBase.accountID, money FROM userBase INNER JOIN bankAccounts ON userBase.accountID = bankAccounts.accountID where email == (?);", (email,))
+                res = cur.fetchall()
+                if res == []:
+                    returnMess = "ERROR! User doesn't exist!"
+                    return flask.redirect(flask.url_for('dashboard'))
+                else:
+                    money = res[0][1]
+                    cur.execute("UPDATE bankAccounts SET money=(?)+(?) WHERE accountID == (?);", (money, sendAccM, res[0][0]))
+                    
+                    cur.execute("UPDATE bankAccounts SET money=(?)-(?) WHERE accountID == (?);", (money, sendAccM, flask.session.get('userAuth')))
+
+                    db.commit()
+                    return flask.redirect(flask.url_for("dashboard"))
+            
+            if withdrawAccM:
+                cur.execute("UPDATE bankAccounts SET money=(?)-(?) WHERE accountID == (?);", (money, withdrawAccM, accID))
+                db.commit()
+                return flask.redirect(flask.url_for('dashboard'))
+            
+
+            
 
 
         except sqlite3.Error as e:
@@ -80,15 +161,19 @@ def dashboard():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Main-page</title>
+    <title>Dashboard</title>
     <link rel="stylesheet" href="style/style.css">
-    <script src="scripts/dashboard.js" defer></script>
+    <script src="static/dashboard.js" defer></script>
 
 </head>
 <body>
-    <button id="log-out">Log Out</button>
-    <h1>Welcome {name}!</h1>
+    <nav>
+        <h1>Welcome {name}!</h1>
+        
+        <form method="POST"><input type="submit" name="log-out" value="Log Out"></form>
+    </nav>
     {accInfo}
+    {sAccInfo}
     <h2>{returnMess}</h2>
 
 </body>
@@ -144,7 +229,7 @@ def login():
     <h1>Login!</h1>
     <form method="POST">
         <input required type="email" name="email" placeholder="Email">
-        <input required type="password" name="pass" placeholder="Mot de passe">
+        <input required type="password" name="pass" placeholder="Password">
         <input type="submit" value="Login" >
     </form>
     <h2>{returnMess}</h2>
@@ -171,7 +256,7 @@ def signup():
                 hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
                 cur = db.cursor()
                 data = {'email': email, 'firstN': firstName, 'lastN': lastName, 'password': hashed_password}
-                cur.execute("INSERT INTO userBase (email, firstName, lastName, password) VALUES (:email, :firstN, :lastN, :password);", data)
+                cur.execute("INSERT INTO userBase (email, firstName, lastName, password, userType) VALUES (:email, :firstN, :lastN, :password, 0);", data)
                 cur.execute("SELECT last_insert_rowid();")
                 res = cur.fetchall()
                 userAuth = res[0][0]
@@ -200,9 +285,9 @@ def signup():
     <h1>Sign Up!</h1>
     <form method="POST">
         <input required type="email" name="email" placeholder="Email">
-        <input required type="text" name="firstName" placeholder="Nom">
-        <input required type="text" name="lastName" placeholder="Prénom">
-        <input required type="password" name="pass" placeholder="mot de passe">
+        <input required type="text" name="firstName" placeholder="First name">
+        <input required type="text" name="lastName" placeholder="Last name">
+        <input required type="password" name="pass" placeholder="Password">
         <input type="submit" value="Sign up" >
     </form>
     <h2>{returnMess}</h2>
