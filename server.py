@@ -1,28 +1,23 @@
 import flask
 import markupsafe
 from flask_bcrypt import Bcrypt
+from flask_session import Session
 import sqlite3
 from datetime import timedelta
 
 app=flask.Flask("banking")
 bcrypt = Bcrypt(app)
 
+app.config["SESSION_PERMANENT"] = False
+app.config["SESSION_TYPE"] = "filesystem"
+Session(app)
 
-dashboardJs = """
-const disconnectButton = document.getElementById("log-out");
-
-disconnectButton.addEventListener("click", () => {
-    location.reload();
-    document.location.href = '/';
-    document.cookie = "userAuth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-});
-"""
 
 @app.route("/")
 def main():
     mainHtml = ""
     resp = None
-    isIdentified = flask.request.cookies.get('userAuth')
+    isIdentified = flask.session.get('userAuth')
     if not isIdentified:
         mainHtml = """
 <!DOCTYPE html>
@@ -50,6 +45,14 @@ def main():
 
 @app.route("/dashboard", methods=["GET", "POST"])
 def dashboard():
+    userID = flask.session.get('userAuth')
+    logOut = flask.request.form.get('log-out')
+    if logOut:
+        flask.session['userAuth'] = None
+        return flask.redirect(flask.url_for("main"))
+
+    if not userID:
+        return flask.redirect(flask.url_for("login"))
     returnMess = ""
     name = ""
     accInfo = ""
@@ -120,7 +123,9 @@ def login():
                     
                     if (bcrypt.check_password_hash(hashed_password, password)):
                         userAuth = res[0][1]
+                        flask.session["userAuth"] = str(userAuth)
                         returnMess = "Success!"
+                        return flask.redirect(flask.url_for('dashboard'))
                     else:
                         returnMess = "Error! Wrong password"
 
@@ -149,9 +154,6 @@ def login():
 </html>
 """
     resp = flask.make_response(loginHtml)
-    if userAuth:
-        resp.set_cookie("userAuth", str(userAuth), max_age=timedelta(minutes=30), path="/")
-
     return resp
 
 @app.route("/sign-up", methods=["GET", "POST"])
@@ -178,6 +180,9 @@ def signup():
                 res = cur.fetchall()
                 cur.execute("UPDATE userBase SET accountID = (?) WHERE email==(?);", (res[0][0], email))
                 db.commit()
+                returnMess = "Success!"
+                flask.session["userAuth"] = str(userAuth)
+                return flask.redirect(flask.url_for('dashboard'))
             except sqlite3.Error as e:
                 
                 returnMess = "Error! Account already exists!"
@@ -208,8 +213,6 @@ def signup():
 """
 
     resp = flask.make_response(signUpHtml)
-    if userAuth:
-        resp.set_cookie("userAuth", str(userAuth), max_age=timedelta(minutes=30), path="/")
     return resp
 
 @app.route("/style/style.css")
@@ -218,10 +221,5 @@ def ff():
     resp.headers["content-type"] = "text/css"
     return resp
 
-@app.route("/scripts/dashboard.js")
-def scriptDashboard():
-    resp = flask.make_response(dashboardJs)
-    resp.headers["content-type"] = "text/javascript"
-    return resp
 
 app.run(port=1234,host="127.0.0.1") 
