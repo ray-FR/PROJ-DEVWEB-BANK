@@ -53,7 +53,6 @@ def dashboard():
 
     if not userID:
         return flask.redirect(flask.url_for("login"))
-    returnMess = ""
     name = ""
     accInfo = ""
     sAccInfo = ""
@@ -90,13 +89,22 @@ def dashboard():
                     sAccID = cur.fetchone()[0]
                     cur.execute("UPDATE userBase SET sharedAccountID = (?) WHERE userID == (?);", (sAccID,accID))
                     db.commit()
+                    flask.flash(f"Created shared account successfully!")
                     return flask.redirect(flask.url_for('dashboard'))
                 if joinSharedAcc:
+                    cur.execute("SELECT accountID, password FROM bankAccounts where name == (?);", (joinSharedAcc,))
+                    tmp = cur.fetchall()
+                    if (tmp == []):
+                        flask.flash(f"Error! Shared account doesn't exist")
+                        return flask.redirect(flask.url_for('dashboard'))
+
                     passShrAcc = flask.request.form.get('passwordSharedAccount')
-                    
-                    
+                    if (bcrypt.check_password_hash(tmp[0][1], passShrAcc)):
+                        cur.execute("UPDATE userBase SET sharedAccountID = (?) WHERE userID == (?);", (tmp[0][0],accID))
+                        flask.flash(f"Joined shared account!")
+                        return flask.redirect(flask.url_for('dashboard'))
+                    flask.flash(f"Error! wrong password")
                     return flask.redirect(flask.url_for('dashboard'))
-                
                 
                 
             else:
@@ -108,11 +116,13 @@ def dashboard():
                     cur.execute("UPDATE bankAccounts SET money=(?)+(?) WHERE accountID == (?);", (sharedMoney, addSAccM, sAccID))
                     cur.execute("UPDATE bankAccounts SET money=(?)-(?) WHERE accountID == (?);", (money, addSAccM, accID))
                     db.commit()
+                    flask.flash(f"Added {addSAccM}€ to the shared account successfully!")
                     return flask.redirect(flask.url_for('dashboard'))
                 if withdrawSAccM:
                     cur.execute("UPDATE bankAccounts SET money=(?)-(?) WHERE accountID == (?);", (sharedMoney, withdrawSAccM, sAccID))
                     cur.execute("UPDATE bankAccounts SET money=(?)+(?) WHERE accountID == (?);", (money, withdrawSAccM, accID))
                     db.commit()
+                    flask.flash(f"Withdrawn {withdrawSAccM}€ from the shared account successfully!")
                     return flask.redirect(flask.url_for('dashboard'))
 
 
@@ -123,14 +133,15 @@ def dashboard():
             if addAccM:
                 cur.execute("UPDATE bankAccounts SET money=(?)+(?) WHERE accountID == (?);", (money, addAccM, accID))
                 db.commit()
+                flask.flash(f"Added {addAccM}€ to your personal account successfully!")
                 return flask.redirect(flask.url_for('dashboard'))
             
             if sendAccM:
                 email = flask.request.form.get('send-email')
-                cur.execute("SELECT userBase.accountID, money FROM userBase INNER JOIN bankAccounts ON userBase.accountID = bankAccounts.accountID where email == (?);", (email,))
+                cur.execute("SELECT userBase.accountID, money, firstName FROM userBase INNER JOIN bankAccounts ON userBase.accountID = bankAccounts.accountID where email == (?);", (email,))
                 res = cur.fetchall()
                 if res == []:
-                    returnMess = "ERROR! User doesn't exist!"
+                    flask.flash(f"ERROR! User doesn't exist!")
                     return flask.redirect(flask.url_for('dashboard'))
                 else:
                     money = res[0][1]
@@ -139,49 +150,30 @@ def dashboard():
                     cur.execute("UPDATE bankAccounts SET money=(?)-(?) WHERE accountID == (?);", (money, sendAccM, flask.session.get('userAuth')))
 
                     db.commit()
+                    flask.flash(f"Sent {withdrawAccM}€ to {res[0][2]} successfully!")
                     return flask.redirect(flask.url_for("dashboard"))
             
             if withdrawAccM:
                 cur.execute("UPDATE bankAccounts SET money=(?)-(?) WHERE accountID == (?);", (money, withdrawAccM, accID))
                 db.commit()
+                flask.flash(f"Withdrawn {withdrawAccM}€ successfully!")
                 return flask.redirect(flask.url_for('dashboard'))
+            
+            return flask.render_template("dashboard.html", name = name, accInfo = accInfo, sAccInfo = sAccInfo)
             
 
             
 
 
         except sqlite3.Error as e:
-            returnMess = "Error! " + e
+            returnMess = "Error! " + str(e)
 
     
 
-    dashboardHtml = f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
-    <link rel="stylesheet" href="style/style.css">
-    <script src="static/dashboard.js" defer></script>
+    
 
-</head>
-<body>
-    <nav>
-        <h1>Welcome {name}!</h1>
-        
-        <form method="POST"><input type="submit" name="log-out" value="Log Out"></form>
-    </nav>
-    {accInfo}
-    {sAccInfo}
-    <h2>{returnMess}</h2>
-
-</body>
-</html>
-"""
-
-    resp = flask.make_response(dashboardHtml)
-    return resp
+    #resp = flask.make_response(dashboardHtml)
+    return flask.render_template("dashboard.html", returnMess = "test")
 
 
 
