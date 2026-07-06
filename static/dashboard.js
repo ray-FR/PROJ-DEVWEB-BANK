@@ -23,7 +23,7 @@ if (createSharedAcc != null){
         newDivC.id = "sharedMoneyCreation";
         newDivC.innerHTML = 
         `
-            <h4>Create Shared Account</h3>
+            <h4>Create Shared Account</h4>
             <form method = "POST">
                 <input type="text" name="createNameSharedAccount" placeholder="Name of shared account">
                 <input type="password" name="passwordSharedAccount" placeholder="Password of shared account">
@@ -45,7 +45,7 @@ if (createSharedAcc != null){
         newDivJ.id = "sharedMoneyJoin";
         newDivJ.innerHTML = 
         `
-            <h4>Join Shared Account</h3>
+            <h4>Join Shared Account</h4>
             <form method = "POST">
                 <input type="text" name="joinNameSharedAccount" placeholder="Name of shared account">
                 <input type="password" name="passwordSharedAccount" placeholder="Password of shared account">
@@ -136,6 +136,20 @@ Array.from(moneyButtons).forEach(element => {
                         <input type = "submit" class="confirm-btn" value="Join">
                     </form>
 
+                `
+                SaccountInfo.appendChild(newDiv);
+                break;
+                
+            case "create-new-Sacc":
+                newDiv.innerHTML=
+                `
+                    <h5>Create Shared Account</h5>
+                    <form method = "POST">
+                        <input type="text" name="createNameSharedAccount" placeholder="Name of shared account">
+                        <input type="password" name="passwordSharedAccount" placeholder="Password of shared account">
+                        <input type = "submit" class="confirm-btn" value="Create">
+
+                    </form>
                 `
                 SaccountInfo.appendChild(newDiv);
                 break;
